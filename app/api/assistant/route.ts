@@ -10,7 +10,10 @@ export async function POST(request: Request) {
   if (isUnsafeIntent(text)) return NextResponse.json({ answer: `${unsafeRefusal} I will not change or recommend medication doses.` })
   const lower = text.toLowerCase()
   const localReplies = [
-    { test: /how are you|are you there|hello|hi/, answer: 'I am right here with you, Esther. You are not alone. How are you feeling today?' },
+    { test: /how are you|are you there|hello|hi/, answer: 'I am right here with you, Elenor. You are not alone. How are you feeling today?' },
+    { test: /what should i take|which medicine|my medicine|my medication|what medication/, answer: 'Please do not take an extra dose or change a dose on my advice. Open the Medication reminders card to see your scheduled medicines, and follow the label or your care team’s instructions. I can call Esther if you are unsure.' },
+    { test: /did i take|taken my|have i taken/, answer: 'I can help you check the Medication reminders card. If you are not sure whether you took a dose, do not take another one until Esther or your care team confirms it.' },
+    { test: /emergency|fall|fell|chest pain|cannot breathe|can't breathe|unsafe/, answer: 'This may be an emergency. Please call your local emergency number now, and I will help contact Esther. Do not stay alone.' },
     { test: /thank/, answer: 'You are very welcome. I am happy to help you.' },
     { test: /medication|medicine|pill|take now|reminder/, answer: 'I can check your medication reminders. Please look at the medication card, and I will remind you when it is time.' },
     { test: /camera|video|see me/, answer: 'I can turn the camera on for a check-in. Say “Aura, turn the camera on” or use the camera button.' },

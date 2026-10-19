@@ -15,4 +15,4 @@ export function normalize(value: string) { return value.toLowerCase().replace(/[
 export function prescriptionMatches(scan: { drug_name: string; dose: string; instructions: string }, prescription: { drug_name: string; dose: string; instructions: string }) {
   return normalize(scan.drug_name) === normalize(prescription.drug_name) && normalize(scan.dose) === normalize(prescription.dose) && normalize(scan.instructions) === normalize(prescription.instructions)
 }
-export function isUnsafeIntent(prompt: string) { return /double my dose|can i skip|do i have a heart problem|what should i take for|change my dose|diagnose me|is this a heart attack|should i stop|take extra|more medicine/i.test(prompt) }
+export function isUnsafeIntent(prompt: string) { return /double my dose|can i skip|do i have a heart problem|change my dose|diagnose me|is this a heart attack|should i stop|take extra|more medicine/i.test(prompt) }

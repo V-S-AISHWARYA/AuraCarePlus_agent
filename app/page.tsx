@@ -12,7 +12,7 @@ const localReply = (text: string) => {
   if (/what is your name|who are you/.test(value)) return 'I am Aura, your friendly voice companion. I can help with reminders, camera check-ins, and contacting your caregiver.'
   if (/how are you|how do you feel/.test(value)) return 'I am doing well and ready to help. How are you feeling right now?'
   if (/what time|time is it|clock/.test(value)) return `It is ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. Would you like me to remind you about anything?`
-  if (/medicine|medication|pill|tablet|reminder/.test(value)) return 'I can help with your medication reminders. Please follow the instructions from your care team, and check the reminder card on the right.'
+  if (/medicine|medication|pill|tablet|reminder/.test(value)) return 'I can help with your medication reminders. Please follow the label and your care team’s instructions. Your reminders are shown on the right, and I will alert you when one is due.'
   if (/camera|see me|video/.test(value)) return 'I can turn the camera on for a check-in. Say “Aura, turn the camera on” or use the camera button.'
   if (/call|caretaker|caregiver|esther/.test(value)) return 'I can contact Esther for you. Say “Aura, call Esther” and I will start the caregiver call.'
   if (/sad|lonely|worried|scared|pain|not well|afraid/.test(value)) return 'I am here with you, Elenor. Take one slow breath with me. Would you like me to call you caregiver?'
@@ -170,27 +170,25 @@ export default function Page() {
     recognition.maxAlternatives = 1
     recognition.onstart = () => { listeningRef.current = true; setListening(true); logActivity('Microphone is listening — speak naturally') }
     recognition.onresult = (event: any) => {
-      let finalText = finalTranscriptRef.current
-      let interimText = ''
+      let heard = ''
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        const phrase = event.results[index]?.[0]?.transcript || ''
-        if (event.results[index].isFinal) finalText += `${phrase} `
-        else interimText += `${phrase} `
+        heard += `${event.results[index]?.[0]?.transcript || ''} `
       }
-      finalTranscriptRef.current = finalText
-      const visibleText = `${finalText}${interimText}`.trim()
+      const visibleText = heard.trim()
+      if (!visibleText) return
       transcriptRef.current = visibleText
-      if (visibleText) setInput(visibleText)
-      if (finalText.trim()) {
+      setInput(visibleText)
+      const hasFinalResult = Array.from(event.results as ArrayLike<{ isFinal: boolean }>).some((result) => result.isFinal)
+      if (hasFinalResult) {
         if (speechTimerRef.current) window.clearTimeout(speechTimerRef.current)
         speechTimerRef.current = window.setTimeout(() => {
-          const sentence = finalTranscriptRef.current.trim()
+          const sentence = transcriptRef.current.trim()
           if (!sentence) return
-          finalTranscriptRef.current = ''
           transcriptRef.current = ''
           setInput('')
+          logActivity('Speech captured — sending your question to Aura')
           submitSpeech(sentence)
-        }, 900)
+        }, 700)
       }
     }
     recognition.onerror = (event: any) => {
@@ -198,25 +196,20 @@ export default function Page() {
         listeningRef.current = false
         setListening(false)
         logActivity('Microphone permission was blocked')
-        speak('Microphone access is blocked. Please allow microphone access and try again.')
+        speak('Microphone access is blocked. Please allow microphone access in your browser, then tap the microphone once.')
+      } else if (event?.error === 'no-speech') {
+        logActivity('No speech detected — still listening')
       } else if (event?.error !== 'aborted' && listeningRef.current) {
         logActivity(`Voice input issue: ${event.error || 'please try again'}`)
       }
     }
     recognition.onend = () => {
       if (!listeningRef.current) return
-      const capturedText = transcriptRef.current.trim()
-      if (capturedText) {
-        logActivity('Speech captured — sending your question to Aura')
-        submitSpeech(capturedText)
-      }
-      // Chrome and Safari can end a recognition session after a pause even
-      // with continuous=true. Restart it without changing the listening state.
       if (restartRef.current) window.clearTimeout(restartRef.current)
       restartRef.current = window.setTimeout(() => {
         if (!listeningRef.current) return
-        try { recognition.start() } catch { /* browser may still be closing the prior session */ }
-      }, 450)
+        try { recognition.start() } catch { /* recognition is already restarting */ }
+      }, 250)
     }
     recognitionRef.current = recognition
     try { recognition.start() } catch { speak('Please press the microphone button again to start listening.') }
@@ -233,13 +226,25 @@ export default function Page() {
   }, [startListening])
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
+    const to24Hour = (value: string) => {
+      const match = value.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i)
+      if (!match) return value.trim().slice(0, 5)
+      let hour = Number(match[1])
+      const minute = match[2]
+      const meridiem = match[3]?.toUpperCase()
+      if (meridiem === 'PM' && hour < 12) hour += 12
+      if (meridiem === 'AM' && hour === 12) hour = 0
+      return `${String(hour).padStart(2, '0')}:${minute}`
+    }
+    const announceDue = () => {
       const now = new Date().toTimeString().slice(0, 5)
-      const due = medications.find((item) => item.status !== 'taken' && item.time === now)
-      if (due) { setAlarm(due); speak(`Medication reminder. It is time for ${due.name}.`) }
-    }, 30000)
+      const due = medications.find((item) => item.status !== 'taken' && to24Hour(item.time) === now)
+      if (due) { setAlarm(due); speak(`Medication reminder. It is time for ${due.name}, ${due.dose}. Please follow the label or your care team's instructions.`); logActivity(`Reminder: ${due.name} is due`) }
+    }
+    announceDue()
+    const timer = window.setInterval(announceDue, 30000)
     return () => window.clearInterval(timer)
-  }, [medications, speak])
+  }, [medications, speak, logActivity])
 
   const addMedication = async (event: FormEvent) => {
     event.preventDefault()
