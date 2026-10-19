@@ -38,6 +38,7 @@ export default function Page() {
   const restartRef = useRef<number | null>(null)
   const speechTimerRef = useRef<number | null>(null)
   const transcriptRef = useRef('')
+  const finalTranscriptRef = useRef('')
   const armedRef = useRef(false)
   const autoStartRef = useRef(false)
   const [demoOpen, setDemoOpen] = useState(false)
@@ -160,6 +161,7 @@ export default function Page() {
     }
 
     transcriptRef.current = ''
+    finalTranscriptRef.current = ''
     if (speechTimerRef.current) window.clearTimeout(speechTimerRef.current)
     const recognition = new Recognition()
     recognition.lang = 'en-US'
@@ -168,22 +170,27 @@ export default function Page() {
     recognition.maxAlternatives = 1
     recognition.onstart = () => { listeningRef.current = true; setListening(true); logActivity('Microphone is listening — speak naturally') }
     recognition.onresult = (event: any) => {
-      let finalText = transcriptRef.current
+      let finalText = finalTranscriptRef.current
       let interimText = ''
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
         const phrase = event.results[index]?.[0]?.transcript || ''
         if (event.results[index].isFinal) finalText += `${phrase} `
         else interimText += `${phrase} `
       }
-      transcriptRef.current = finalText
+      finalTranscriptRef.current = finalText
       const visibleText = `${finalText}${interimText}`.trim()
+      transcriptRef.current = visibleText
       if (visibleText) setInput(visibleText)
-      if (visibleText) {
-        transcriptRef.current = visibleText
+      if (finalText.trim()) {
         if (speechTimerRef.current) window.clearTimeout(speechTimerRef.current)
-        // Web Speech can report the last words as interim text only. Submit the
-        // complete visible transcript after a short pause instead of dropping it.
-        speechTimerRef.current = window.setTimeout(() => submitSpeech(transcriptRef.current), 700)
+        speechTimerRef.current = window.setTimeout(() => {
+          const sentence = finalTranscriptRef.current.trim()
+          if (!sentence) return
+          finalTranscriptRef.current = ''
+          transcriptRef.current = ''
+          setInput('')
+          submitSpeech(sentence)
+        }, 900)
       }
     }
     recognition.onerror = (event: any) => {
