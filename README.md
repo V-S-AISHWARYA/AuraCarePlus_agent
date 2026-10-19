@@ -18,7 +18,7 @@ Copy `.env.example` to your environment. `MCP_AUTH_TOKEN` protects `/mcp`; `AI_A
 ## Where MCP is used
 `mcp.config.json` describes the endpoint. Tool definitions and safety helpers are in `server/tools.ts`, and the runtime client contract is in `lib/mcp-client.ts`. The UI ships with a visible, auditable MCP contract surface while backend wiring can be connected to the deployed `/mcp` endpoint. All tool responses must remain prescription-grounded and use human escalation for uncertainty.
 
-```mermaid
+```
 graph LR
  UI[React simulated Alexa+ + caregiver dashboard] --> CLIENT[Real MCP client]
  CLIENT --> HTTP[/mcp Streamable HTTP]
