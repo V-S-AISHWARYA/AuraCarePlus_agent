@@ -70,7 +70,6 @@ export default function Page() {
   const askAura = useCallback(async (text: string) => {
     const question = text.trim()
     if (!question || loading) return
-    setInput('')
     setMessages((items) => [...items, { id: Date.now() + Math.random(), from: 'you' as const, text: question }].slice(-12))
     setLoading(true)
     try {
@@ -122,12 +121,20 @@ export default function Page() {
       setListening(false)
       setInput('')
       transcriptRef.current = ''
+      finalTranscriptRef.current = ''
+      if (speechTimerRef.current) window.clearTimeout(speechTimerRef.current)
       return
     }
 
-    // Start SpeechRecognition directly. Requesting a separate getUserMedia
-    // stream first can consume the browser microphone permission and leave
-    // SpeechRecognition connected to a silent stream in preview browsers.
+    try {
+      const stream = await navigator.mediaDevices?.getUserMedia({ audio: true })
+      stream?.getTracks().forEach((track) => track.stop())
+    } catch {
+      logActivity('Microphone permission is required')
+      speak('Please allow microphone access, then tap the microphone again.')
+      return
+    }
+
     const submitSpeech = (spokenText: string) => {
       const normalized = spokenText.trim()
       if (!normalized) return
@@ -151,7 +158,7 @@ export default function Page() {
       }
       if (speechTimerRef.current) window.clearTimeout(speechTimerRef.current)
       transcriptRef.current = ''
-      setInput('')
+      finalTranscriptRef.current = ''
       if (!command) { speak('Yes, I am listening. Please tell me what you need.'); return }
       if (/camera/.test(command.toLowerCase()) && /turn off|switch off|close|stop/.test(command.toLowerCase())) { stopCamera(); return }
       if (/camera/.test(command.toLowerCase()) && /turn on|switch on|open|start/.test(command.toLowerCase())) { toggleCamera(); return }
@@ -171,16 +178,17 @@ export default function Page() {
     recognition.maxAlternatives = 1
     recognition.onstart = () => { listeningRef.current = true; setListening(true); logActivity('Microphone is listening — speak naturally') }
     recognition.onresult = (event: any) => {
-      // SpeechRecognition returns a live list of results. Rebuild the complete
-      // transcript on every event so words are not lost when resultIndex moves.
-      let heard = ''
+      let finalText = finalTranscriptRef.current
+      let interimText = ''
       let hasFinalResult = false
-      for (let index = 0; index < event.results.length; index += 1) {
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
         const result = event.results[index]
-        heard += `${result?.[0]?.transcript || ''} `
-        if (result?.isFinal) hasFinalResult = true
+        const phrase = result?.[0]?.transcript || ''
+        if (result?.isFinal) { finalText += `${phrase} `; hasFinalResult = true }
+        else interimText += `${phrase} `
       }
-      const visibleText = heard.trim()
+      finalTranscriptRef.current = finalText
+      const visibleText = `${finalText}${interimText}`.trim()
       if (!visibleText) return
       transcriptRef.current = visibleText
       setInput(visibleText)
@@ -190,8 +198,6 @@ export default function Page() {
         speechTimerRef.current = window.setTimeout(() => {
           const sentence = transcriptRef.current.trim()
           if (!sentence) return
-          transcriptRef.current = ''
-          setInput('')
           logActivity(`Speech captured: “${sentence}” — sending to Aura`)
           submitSpeech(sentence)
         }, 900)
@@ -223,13 +229,8 @@ export default function Page() {
 
   useEffect(() => {
     fetch('/api/medications').then((response) => response.json()).then((data) => setMedications(data.medications || [])).catch(() => {})
-    const autoStart = window.setTimeout(() => {
-      if (autoStartRef.current || listeningRef.current) return
-      autoStartRef.current = true
-      startListening()
-    }, 700)
-    return () => { window.clearTimeout(autoStart); recognitionRef.current?.stop(); if (restartRef.current) window.clearTimeout(restartRef.current) }
-  }, [startListening])
+    return () => { recognitionRef.current?.stop(); if (restartRef.current) window.clearTimeout(restartRef.current); if (speechTimerRef.current) window.clearTimeout(speechTimerRef.current) }
+  }, [])
 
   useEffect(() => {
     const to24Hour = (value: string) => {
@@ -267,7 +268,7 @@ export default function Page() {
     <div className="mx-auto grid max-w-5xl gap-6 px-5 py-8 lg:grid-cols-[1.35fr_0.65fr]">
       <section className="rounded-[2rem] bg-white p-6 shadow-xl"><div className="flex items-center justify-between"><div><p className="text-sm font-bold text-indigo-600">Always here for you</p><h1 className="text-3xl font-black text-indigo-950">Talk with Aura</h1></div><div className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-bold ${listening ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}><span className={`size-2 rounded-full ${listening ? 'animate-pulse bg-emerald-500' : 'bg-slate-400'}`} />{listening ? 'Listening' : 'Ready'}</div></div>
         <div className="mt-5 flex min-h-56 flex-col gap-3 rounded-3xl bg-gradient-to-br from-indigo-50 to-cyan-50 p-4">{messages.length === 0 && <div className="m-auto text-center text-slate-500"><Volume2 className="mx-auto mb-3 size-10 text-indigo-500" /><p className="font-bold">Say “Aura” to wake me up</p><p className="mt-1 text-sm">Then ask your question. I will answer out loud.</p></div>}{messages.map((message) => <div key={message.id} className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm ${message.from === 'you' ? 'self-end bg-indigo-600 text-white' : 'bg-white text-slate-700 shadow-sm'}`}><span className="mb-1 block text-[10px] font-black uppercase opacity-60">{message.from === 'you' ? 'You' : 'Aura'}</span>{message.text}</div>)}{loading && <div className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-indigo-600">Aura is thinking…</div>}</div>
-        <div className="mt-5 flex flex-col items-center gap-3"><button onClick={startListening} aria-label={listening ? 'Stop listening' : 'Start listening'} className={`flex size-24 items-center justify-center rounded-full text-white shadow-xl transition hover:scale-105 ${listening ? 'bg-rose-500' : 'bg-gradient-to-br from-indigo-600 to-cyan-500'}`}>{listening ? <MicOff className="size-10" /> : <Mic className="size-10" />}</button><p className="text-center text-sm font-bold text-slate-500">{listening ? 'Wake word active — say “Aura”, then speak' : 'Tap once to enable hands-free “Aura” wake mode'}</p></div>
+        <div className="mt-5 flex flex-col items-center gap-3"><button onClick={startListening} aria-label={listening ? 'Stop listening' : 'Start listening'} className={`flex size-24 items-center justify-center rounded-full text-white shadow-xl transition hover:scale-105 ${listening ? 'bg-rose-500' : 'bg-gradient-to-br from-indigo-600 to-cyan-500'}`}>{listening ? <MicOff className="size-10" /> : <Mic className="size-10" />}</button><p className="text-center text-sm font-bold text-slate-500">{listening ? 'Listening — your words will appear here' : 'Tap the microphone, allow access, and speak'}</p></div>
         <form onSubmit={(event) => { event.preventDefault(); askAura(input) }} className="mt-5 flex gap-2"><input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Type to talk with Aura..." className="min-w-0 flex-1 rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-indigo-500" /><button className="rounded-2xl bg-indigo-600 px-4 text-white" aria-label="Send message"><Send /></button></form>
         <div className="mt-3 grid gap-3 sm:grid-cols-2"><button onClick={() => setDemoOpen(true)} className="flex items-center justify-center gap-2 rounded-2xl border-2 border-indigo-200 bg-indigo-50 px-4 py-3 font-bold text-indigo-700"><Play /> Interactive demo</button><button onClick={() => setToolsOpen(true)} className="flex items-center justify-center gap-2 rounded-2xl border-2 border-cyan-200 bg-cyan-50 px-4 py-3 font-bold text-cyan-700"><Wrench /> Frameworks &amp; MCP</button></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><button onClick={toggleCamera} className="flex items-center justify-center gap-2 rounded-2xl bg-cyan-600 px-4 py-3 font-bold text-white">{cameraOn ? <CameraOff /> : <Camera />} {cameraOn ? 'Turn camera off' : 'Camera check-in'}</button><button onClick={callEsther} className="flex items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 font-bold text-white"><Phone /> Call Esther</button></div>{cameraOn && <div className="mt-4 overflow-hidden rounded-2xl bg-slate-950 p-2"><video ref={cameraRef} autoPlay playsInline className="aspect-video w-full rounded-xl object-cover" /></div>}
       </section>
