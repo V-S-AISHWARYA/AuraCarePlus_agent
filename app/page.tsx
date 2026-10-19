@@ -8,17 +8,17 @@ type Medication = { id: number; name: string; dose: string; instructions: string
 
 const localReply = (text: string) => {
   const value = text.toLowerCase().trim()
-  if (/hello|hi|good morning|good afternoon|are you there/.test(value)) return 'Hello, Esther. I am Aura, and I am right here with you. How are you feeling today?'
+  if (/hello|hi|good morning|good afternoon|are you there/.test(value)) return 'Hello, Elenor. I am Aura, and I am right here with you. How are you feeling today?'
   if (/what is your name|who are you/.test(value)) return 'I am Aura, your friendly voice companion. I can help with reminders, camera check-ins, and contacting your caregiver.'
   if (/how are you|how do you feel/.test(value)) return 'I am doing well and ready to help. How are you feeling right now?'
   if (/what time|time is it|clock/.test(value)) return `It is ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. Would you like me to remind you about anything?`
   if (/medicine|medication|pill|tablet|reminder/.test(value)) return 'I can help with your medication reminders. Please follow the instructions from your care team, and check the reminder card on the right.'
   if (/camera|see me|video/.test(value)) return 'I can turn the camera on for a check-in. Say “Aura, turn the camera on” or use the camera button.'
   if (/call|caretaker|caregiver|esther/.test(value)) return 'I can contact Esther for you. Say “Aura, call Esther” and I will start the caregiver call.'
-  if (/sad|lonely|worried|scared|pain|not well|afraid/.test(value)) return 'I am here with you, Esther. Take one slow breath with me. Would you like me to call you caregiver?'
+  if (/sad|lonely|worried|scared|pain|not well|afraid/.test(value)) return 'I am here with you, Elenor. Take one slow breath with me. Would you like me to call you caregiver?'
   if (/thank/.test(value)) return 'You are very welcome. I am happy to help.'
   if (/weather|outside|hot|cold/.test(value)) return 'Please stay comfortable and hydrated. Esther can help check the local weather with you.'
-  if (/goodbye|bye|stop listening/.test(value)) return 'Okay, Esther. I will be here whenever you need me. Say Aura when you are ready.'
+  if (/goodbye|bye|stop listening/.test(value)) return 'Okay, Elenor. I will be here whenever you need me. Say Aura when you are ready.'
   return `I heard your question: “${text}”. I do not have that information yet, but I am listening. You can ask about your wellbeing, medications, the camera, or calling Esther.`
 }
 
@@ -67,7 +67,10 @@ export default function Page() {
     try {
       const response = await fetch('/api/assistant', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: question }) })
       const data = await response.json().catch(() => ({}))
-      speak(response.ok && data.answer ? data.answer : localReply(question))
+      const fallback = localReply(question)
+      const serverAnswer = typeof data.answer === 'string' ? data.answer : ''
+      const answer = response.ok && serverAnswer && !serverAnswer.startsWith('I heard your question about') ? serverAnswer : fallback
+      speak(answer)
     } catch {
       speak(localReply(question))
     } finally {
@@ -141,6 +144,8 @@ export default function Page() {
       askAura(command)
     }
 
+    transcriptRef.current = ''
+    if (speechTimerRef.current) window.clearTimeout(speechTimerRef.current)
     const recognition = new Recognition()
     recognition.lang = 'en-US'
     recognition.continuous = true
@@ -159,8 +164,11 @@ export default function Page() {
       const visibleText = `${finalText}${interimText}`.trim()
       if (visibleText) setInput(visibleText)
       if (visibleText) {
+        transcriptRef.current = visibleText
         if (speechTimerRef.current) window.clearTimeout(speechTimerRef.current)
-        speechTimerRef.current = window.setTimeout(() => submitSpeech(transcriptRef.current), 1100)
+        // Web Speech can report the last words as interim text only. Submit the
+        // complete visible transcript after a short pause instead of dropping it.
+        speechTimerRef.current = window.setTimeout(() => submitSpeech(transcriptRef.current), 700)
       }
     }
     recognition.onerror = (event: any) => {
@@ -175,8 +183,14 @@ export default function Page() {
     }
     recognition.onend = () => {
       if (!listeningRef.current) return
+      const capturedText = transcriptRef.current.trim()
+      if (capturedText) {
+        logActivity('Speech captured — sending your question to Aura')
+        submitSpeech(capturedText)
+        return
+      }
       setListening(false)
-      logActivity('Speech captured — sending your question to Aura')
+      logActivity('Listening paused — say a few words and try again')
       if (restartRef.current) window.clearTimeout(restartRef.current)
       restartRef.current = window.setTimeout(() => {
         if (!listeningRef.current) return
