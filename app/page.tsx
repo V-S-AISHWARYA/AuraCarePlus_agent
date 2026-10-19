@@ -101,57 +101,86 @@ export default function Page() {
     window.setTimeout(() => setCalling(false), 5000)
   }, [speak])
 
-  const startListening = useCallback(() => {
+  const startListening = useCallback(async () => {
     const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (!Recognition) { speak('Voice input is not supported here. You can type your question below.'); return }
-    if (listeningRef.current) { recognitionRef.current?.stop(); listeningRef.current = false; setListening(false); return }
+    if (!Recognition) { speak('Voice input is not supported in this browser. You can type your question below.'); return }
+    if (listeningRef.current) {
+      listeningRef.current = false
+      recognitionRef.current?.stop()
+      setListening(false)
+      setInput('')
+      transcriptRef.current = ''
+      return
+    }
+
+    try {
+      const permissionStream = await navigator.mediaDevices?.getUserMedia({ audio: true })
+      permissionStream?.getTracks().forEach((track) => track.stop())
+    } catch {
+      logActivity('Microphone permission is needed before Aura can listen')
+      speak('Please allow microphone access in your browser so I can hear you.')
+      return
+    }
+
+    const submitSpeech = (spokenText: string) => {
+      const normalized = spokenText.trim()
+      if (!normalized) return
+      const lower = normalized.toLowerCase()
+      const auraIndex = lower.lastIndexOf('aura')
+      const command = auraIndex >= 0 ? normalized.slice(auraIndex + 4).trim() : normalized
+      transcriptRef.current = ''
+      setInput('')
+      if (!command) { speak('Yes, I am listening. Please tell me what you need.'); return }
+      if (/camera/.test(command.toLowerCase()) && /turn off|switch off|close|stop/.test(command.toLowerCase())) { stopCamera(); return }
+      if (/camera/.test(command.toLowerCase()) && /turn on|switch on|open|start/.test(command.toLowerCase())) { toggleCamera(); return }
+      if (/call|caretaker|caregiver/.test(command.toLowerCase())) { callEsther(); return }
+      askAura(command)
+    }
+
     const recognition = new Recognition()
     recognition.lang = 'en-US'
-    recognition.continuous = true
+    recognition.continuous = false
     recognition.interimResults = true
     recognition.maxAlternatives = 1
     recognition.onstart = () => { listeningRef.current = true; setListening(true); logActivity('Microphone is listening — speak naturally') }
     recognition.onresult = (event: any) => {
-      let transcript = ''
-      const startIndex = typeof event.resultIndex === 'number' ? event.resultIndex : event.results.length - 1
-      for (let index = startIndex; index < event.results.length; index += 1) {
-        transcript += `${event.results[index]?.[0]?.transcript || ''} `
+      let finalText = ''
+      let interimText = ''
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const phrase = event.results[index]?.[0]?.transcript || ''
+        if (event.results[index].isFinal) finalText += `${phrase} `
+        else interimText += `${phrase} `
       }
-      transcript = transcript.trim()
-      if (!transcript) return
-      transcriptRef.current = transcript
-      setInput(transcript)
-      if (speechTimerRef.current) window.clearTimeout(speechTimerRef.current)
-      speechTimerRef.current = window.setTimeout(() => {
-        const spokenText = transcriptRef.current.trim()
-        if (!spokenText) return
-        const lower = spokenText.toLowerCase()
-        const auraIndex = lower.lastIndexOf('aura')
-        const command = auraIndex >= 0 ? spokenText.slice(auraIndex + 4).trim() : spokenText
-        transcriptRef.current = ''
-        setInput('')
-        if (!command) { speak('Yes, I am listening. Please tell me what you need.'); return }
-        if (/turn off|switch off|close|stop/.test(command.toLowerCase()) && /camera/.test(command.toLowerCase())) { stopCamera(); return }
-        if (/turn on|switch on|open|start/.test(command.toLowerCase()) && /camera/.test(command.toLowerCase())) { toggleCamera(); return }
-        if (/call|caretaker|caregiver|priya|esther/.test(command.toLowerCase())) { callEsther(); return }
-        askAura(command)
-      }, 1200)
+      const visibleText = `${finalText}${interimText}`.trim()
+      if (visibleText) setInput(visibleText)
+      if (finalText.trim()) {
+        if (speechTimerRef.current) window.clearTimeout(speechTimerRef.current)
+        speechTimerRef.current = window.setTimeout(() => submitSpeech(finalText), 650)
+      }
     }
     recognition.onerror = (event: any) => {
       if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
         listeningRef.current = false
         setListening(false)
-        logActivity('Microphone permission was blocked'); speak('Microphone access is blocked. Please allow microphone access, then press Start listening.')
+        logActivity('Microphone permission was blocked')
+        speak('Microphone access is blocked. Please allow microphone access and try again.')
+      } else if (event?.error !== 'aborted' && listeningRef.current) {
+        logActivity(`Voice input issue: ${event.error || 'please try again'}`)
       }
     }
     recognition.onend = () => {
       if (!listeningRef.current) return
+      setListening(false)
+      logActivity('Speech captured — sending your question to Aura')
       if (restartRef.current) window.clearTimeout(restartRef.current)
-      restartRef.current = window.setTimeout(() => { try { recognition.start() } catch {} }, 350)
+      restartRef.current = window.setTimeout(() => {
+        if (!listeningRef.current) return
+        try { recognition.start() } catch { /* browser may still be closing the prior session */ }
+      }, 450)
     }
     recognitionRef.current = recognition
     try { recognition.start() } catch { speak('Please press the microphone button again to start listening.') }
-  }, [askAura, callEsther, speak, stopCamera, toggleCamera])
+  }, [askAura, callEsther, logActivity, speak, stopCamera, toggleCamera])
 
   useEffect(() => {
     fetch('/api/medications').then((response) => response.json()).then((data) => setMedications(data.medications || [])).catch(() => {})
