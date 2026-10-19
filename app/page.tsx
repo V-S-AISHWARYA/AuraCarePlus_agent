@@ -7,12 +7,19 @@ type Message = { id: number; from: 'you' | 'aura'; text: string }
 type Medication = { id: number; name: string; dose: string; instructions: string; time: string; status: string }
 
 const localReply = (text: string) => {
-  const value = text.toLowerCase()
-  if (/hello|hi|good morning|are you there/.test(value)) return 'Hello. I am Aura, and I am right here with you. How are you feeling today?'
-  if (/medicine|medication|pill|tablet/.test(value)) return 'I can help with your medication reminders. Please follow the instructions from your care team.'
-  if (/sad|lonely|worried|pain|not well/.test(value)) return 'I am here with you. Take a slow breath. Would you like me to call Esther?'
+  const value = text.toLowerCase().trim()
+  if (/hello|hi|good morning|good afternoon|are you there/.test(value)) return 'Hello, Esther. I am Aura, and I am right here with you. How are you feeling today?'
+  if (/what is your name|who are you/.test(value)) return 'I am Aura, your friendly voice companion. I can help with reminders, camera check-ins, and contacting your caregiver.'
+  if (/how are you|how do you feel/.test(value)) return 'I am doing well and ready to help. How are you feeling right now?'
+  if (/what time|time is it|clock/.test(value)) return `It is ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. Would you like me to remind you about anything?`
+  if (/medicine|medication|pill|tablet|reminder/.test(value)) return 'I can help with your medication reminders. Please follow the instructions from your care team, and check the reminder card on the right.'
+  if (/camera|see me|video/.test(value)) return 'I can turn the camera on for a check-in. Say “Aura, turn the camera on” or use the camera button.'
+  if (/call|caretaker|caregiver|esther/.test(value)) return 'I can contact Esther for you. Say “Aura, call Esther” and I will start the caregiver call.'
+  if (/sad|lonely|worried|scared|pain|not well|afraid/.test(value)) return 'I am here with you, Esther. Take one slow breath with me. Would you like me to call you caregiver?'
   if (/thank/.test(value)) return 'You are very welcome. I am happy to help.'
-  return `I heard you say, “${text}”. I am listening. You can ask me about reminders, the camera, or calling Esther.`
+  if (/weather|outside|hot|cold/.test(value)) return 'Please stay comfortable and hydrated. Esther can help check the local weather with you.'
+  if (/goodbye|bye|stop listening/.test(value)) return 'Okay, Esther. I will be here whenever you need me. Say Aura when you are ready.'
+  return `I heard your question: “${text}”. I do not have that information yet, but I am listening. You can ask about your wellbeing, medications, the camera, or calling Esther.`
 }
 
 export default function Page() {
