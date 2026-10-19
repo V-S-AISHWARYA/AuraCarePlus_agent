@@ -19,7 +19,14 @@ const localReply = (text: string) => {
   if (/thank/.test(value)) return 'You are very welcome. I am happy to help.'
   if (/weather|outside|hot|cold/.test(value)) return 'Please stay comfortable and hydrated. Esther can help check the local weather with you.'
   if (/goodbye|bye|stop listening/.test(value)) return 'Okay, Elenor. I will be here whenever you need me. Say Aura when you are ready.'
-  return `I heard your question: “${text}”. I do not have that information yet, but I am listening. You can ask about your wellbeing, medications, the camera, or calling Esther.`
+  if (/what can you do|help me|help/.test(value)) return 'I can keep you company, explain your reminders, turn the camera on or off, and contact Esther. You can ask me anything in simple words.'
+  if (/thank|thanks/.test(value)) return 'You are very welcome, Elenor. I am glad you told me. Is there anything else you would like to do together?'
+  const friendlyReplies = [
+    `That is a thoughtful question about “${text}”. I want to give you a useful answer, not guess. Could you tell me a little more about what you need?`,
+    `I am listening, Elenor. I understood you were asking about “${text}”. I can help you talk it through or contact Esther if it is important.`,
+    `Thank you for telling me that. Let us take it one step at a time. Are you asking for information, a reminder, or help contacting Esther?`,
+  ]
+  return friendlyReplies[Math.floor(Date.now() / 60000) % friendlyReplies.length]
 }
 
 export default function Page() {

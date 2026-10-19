@@ -25,15 +25,31 @@ export async function POST(request: Request) {
   const localReply = localReplies.find((item) => item.test.test(lower))
   if (localReply) return NextResponse.json({ answer: localReply.answer, source: 'aura' })
   try {
-    const result = await generateText({
-      model: gateway('google/gemini-2.5-flash'),
-      system: 'You are AuraCare, a warm voice companion for Eleanor, a senior. Give short, calm, plain-language replies. You may remind her of scheduled medications, encourage contacting her caregiver, and offer general wellness support. Never diagnose, change doses, or provide emergency medical advice. If she mentions a fall, chest pain, severe breathing trouble, or feeling unsafe, tell her to call emergency services and her caregiver now.',
-      prompt: text,
-      maxOutputTokens: 120,
-    })
-    return NextResponse.json({ answer: result.text || 'I heard you, Eleanor. I am here with you.', source: 'aura' })
+    const question = text.trim()
+    const fallbackReplies = [
+      `I heard you, Elenor. You asked about “${question}”. I do not want to guess, so tell me a little more and I will help you step by step.`,
+      `Thank you for telling me, Elenor. I am right here with you. Would you like information, a medication reminder, a camera check-in, or for me to contact Esther?`,
+      `I am listening carefully. I understood “${question}”. Let us work it out together, and I can bring Esther in if you need another person.`,
+    ]
+    const fallback = fallbackReplies[Math.floor(Date.now() / 60000) % fallbackReplies.length]
+    const result = await Promise.race([
+      generateText({
+        model: gateway('google/gemini-2.5-flash'),
+        system: 'You are AuraCare, a warm, conversational voice companion for Elenor, a senior. Respond specifically to the user, never repeat a generic answer, and ask one gentle follow-up when useful. Give short, calm, plain-language replies. You may explain scheduled medication reminders, encourage contacting caregiver Esther, and offer general wellness support. Never diagnose, change doses, or provide emergency medical advice. If she mentions a fall, chest pain, severe breathing trouble, or feeling unsafe, tell her to call emergency services and Esther now.',
+        prompt: question,
+        maxOutputTokens: 120,
+      }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 4500)),
+    ])
+    return NextResponse.json({ answer: result?.text || fallback, source: result?.text ? 'aura' : 'fallback' })
   } catch {
-    const fallback = `I heard your question about “${text.trim()}”. I am still here with you, Esther. I can help with medication reminders, camera check-ins, or calling Esther. Could you say that another way?`
+    const question = text.trim()
+    const fallbackReplies = [
+      `I heard you, Elenor. You asked about “${question}”. I do not want to guess, so tell me a little more and I will help you step by step.`,
+      `Thank you for telling me, Elenor. I am right here with you. Would you like information, a medication reminder, a camera check-in, or for me to contact Esther?`,
+      `I am listening carefully. I understood “${question}”. Let us work it out together, and I can bring Esther in if you need another person.`,
+    ]
+    const fallback = fallbackReplies[Math.floor(Date.now() / 60000) % fallbackReplies.length]
     return NextResponse.json({ answer: fallback, source: 'fallback' })
   }
 }
