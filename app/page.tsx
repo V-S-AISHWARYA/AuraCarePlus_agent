@@ -128,13 +128,28 @@ export default function Page() {
     const submitSpeech = (spokenText: string) => {
       const normalized = spokenText.trim()
       if (!normalized) return
+      const lower = normalized.toLowerCase()
+      const auraIndex = lower.lastIndexOf('aura')
+      const command = auraIndex >= 0 ? normalized.slice(auraIndex + 4).trim() : normalized
+      // Keep the microphone session alive after the wake word. The senior can
+      // say “Aura”, pause, and then continue naturally without touching the UI.
+      if (auraIndex >= 0 && !command) {
+        transcriptRef.current = ''
+        setInput('')
+        if (speechTimerRef.current) window.clearTimeout(speechTimerRef.current)
+        if (!listeningRef.current) {
+          listeningRef.current = true
+          setListening(true)
+          try { recognitionRef.current?.start() } catch { /* already listening */ }
+        }
+        logActivity('Wake word heard — Aura is ready for your question')
+        speak('Yes, Elenor. I am listening.')
+        return
+      }
       listeningRef.current = false
       recognitionRef.current?.stop()
       setListening(false)
       if (speechTimerRef.current) window.clearTimeout(speechTimerRef.current)
-      const lower = normalized.toLowerCase()
-      const auraIndex = lower.lastIndexOf('aura')
-      const command = auraIndex >= 0 ? normalized.slice(auraIndex + 4).trim() : normalized
       transcriptRef.current = ''
       setInput('')
       if (!command) { speak('Yes, I am listening. Please tell me what you need.'); return }
@@ -230,7 +245,7 @@ export default function Page() {
     <div className="mx-auto grid max-w-5xl gap-6 px-5 py-8 lg:grid-cols-[1.35fr_0.65fr]">
       <section className="rounded-[2rem] bg-white p-6 shadow-xl"><div className="flex items-center justify-between"><div><p className="text-sm font-bold text-indigo-600">Always here for you</p><h1 className="text-3xl font-black text-indigo-950">Talk with Aura</h1></div><div className={`flex items-center gap-2 rounded-full px-3 py-2 text-xs font-bold ${listening ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}><span className={`size-2 rounded-full ${listening ? 'animate-pulse bg-emerald-500' : 'bg-slate-400'}`} />{listening ? 'Listening' : 'Ready'}</div></div>
         <div className="mt-5 flex min-h-56 flex-col gap-3 rounded-3xl bg-gradient-to-br from-indigo-50 to-cyan-50 p-4">{messages.length === 0 && <div className="m-auto text-center text-slate-500"><Volume2 className="mx-auto mb-3 size-10 text-indigo-500" /><p className="font-bold">Say “Aura” to wake me up</p><p className="mt-1 text-sm">Then ask your question. I will answer out loud.</p></div>}{messages.map((message) => <div key={message.id} className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm ${message.from === 'you' ? 'self-end bg-indigo-600 text-white' : 'bg-white text-slate-700 shadow-sm'}`}><span className="mb-1 block text-[10px] font-black uppercase opacity-60">{message.from === 'you' ? 'You' : 'Aura'}</span>{message.text}</div>)}{loading && <div className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-indigo-600">Aura is thinking…</div>}</div>
-        <div className="mt-5 flex flex-col items-center gap-3"><button onClick={startListening} aria-label={listening ? 'Stop listening' : 'Start listening'} className={`flex size-24 items-center justify-center rounded-full text-white shadow-xl transition hover:scale-105 ${listening ? 'bg-rose-500' : 'bg-gradient-to-br from-indigo-600 to-cyan-500'}`}>{listening ? <MicOff className="size-10" /> : <Mic className="size-10" />}</button><p className="text-sm font-bold text-slate-500">{listening ? 'Listening for “Aura” and your question' : 'Tap the microphone to start'}</p></div>
+        <div className="mt-5 flex flex-col items-center gap-3"><button onClick={startListening} aria-label={listening ? 'Stop listening' : 'Start listening'} className={`flex size-24 items-center justify-center rounded-full text-white shadow-xl transition hover:scale-105 ${listening ? 'bg-rose-500' : 'bg-gradient-to-br from-indigo-600 to-cyan-500'}`}>{listening ? <MicOff className="size-10" /> : <Mic className="size-10" />}</button><p className="text-center text-sm font-bold text-slate-500">{listening ? 'Wake word active — say “Aura”, then speak' : 'Tap once to enable hands-free “Aura” wake mode'}</p></div>
         <form onSubmit={(event) => { event.preventDefault(); askAura(input) }} className="mt-5 flex gap-2"><input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Type to talk with Aura..." className="min-w-0 flex-1 rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-indigo-500" /><button className="rounded-2xl bg-indigo-600 px-4 text-white" aria-label="Send message"><Send /></button></form>
         <div className="mt-3 grid gap-3 sm:grid-cols-2"><button onClick={() => setDemoOpen(true)} className="flex items-center justify-center gap-2 rounded-2xl border-2 border-indigo-200 bg-indigo-50 px-4 py-3 font-bold text-indigo-700"><Play /> Interactive demo</button><button onClick={() => setToolsOpen(true)} className="flex items-center justify-center gap-2 rounded-2xl border-2 border-cyan-200 bg-cyan-50 px-4 py-3 font-bold text-cyan-700"><Wrench /> Frameworks &amp; MCP</button></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><button onClick={toggleCamera} className="flex items-center justify-center gap-2 rounded-2xl bg-cyan-600 px-4 py-3 font-bold text-white">{cameraOn ? <CameraOff /> : <Camera />} {cameraOn ? 'Turn camera off' : 'Camera check-in'}</button><button onClick={callEsther} className="flex items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 font-bold text-white"><Phone /> Call Esther</button></div>{cameraOn && <div className="mt-4 overflow-hidden rounded-2xl bg-slate-950 p-2"><video ref={cameraRef} autoPlay playsInline className="aspect-video w-full rounded-xl object-cover" /></div>}
       </section>
