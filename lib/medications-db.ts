@@ -12,4 +12,8 @@ if (seed.count === 0) {
   insert.run('Amlodipine', '5 mg', 'after dinner', '7:00 PM', 'scheduled')
 }
 export function listMedications() { return db.prepare('SELECT * FROM medications ORDER BY id').all() }
+export function addMedication(input: { name: string; dose: string; instructions: string; time: string }) {
+  const result = db.prepare('INSERT INTO medications (name, dose, instructions, time, status) VALUES (?, ?, ?, ?, ?)').run(input.name, input.dose, input.instructions, input.time, 'scheduled')
+  return db.prepare('SELECT * FROM medications WHERE id=?').get(result.lastInsertRowid)
+}
 export function markMedicationTaken(id: number) { db.prepare("UPDATE medications SET status='taken', taken_at=? WHERE id=?").run(new Date().toISOString(), id); return db.prepare('SELECT * FROM medications WHERE id=?').get(id) }
