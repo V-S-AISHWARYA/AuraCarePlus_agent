@@ -49,7 +49,7 @@ The capabilities are defined as an MCP tool contract in `server/tools.ts` (Zod-v
 
 ## Architecture
 
-```mermaid
+```
 graph LR
   UI[React: simulated Alexa+ senior UI] --> ASSIST[/api/assistant]
   UI --> MEDS[/api/medications]
