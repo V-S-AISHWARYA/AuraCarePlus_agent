@@ -3,7 +3,7 @@ import path from 'node:path'
 
 const db = new Database(path.join(process.cwd(), 'auracare.sqlite'))
 db.pragma('journal_mode = WAL')
-db.exec(`CREATE TABLE IF NOT EXISTS medications (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, dose TEXT NOT NULL, instructions TEXT NOT NULL, time TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'scheduled', taken_at TEXT)`)
+db.exec(`CREATE TABLE IF NOT EXISTS medications (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, dose TEXT NOT NULL, instructions TEXT NOT NULL, time TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'scheduled', taken_at TEXT); CREATE TABLE IF NOT EXISTS action_memory (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, detail TEXT NOT NULL, created_at TEXT NOT NULL)`)
 const seed = db.prepare('SELECT COUNT(*) as count FROM medications').get() as { count: number }
 if (seed.count === 0) {
   const insert = db.prepare('INSERT INTO medications (name, dose, instructions, time, status) VALUES (?, ?, ?, ?, ?)')
