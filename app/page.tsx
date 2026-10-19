@@ -170,15 +170,20 @@ export default function Page() {
     recognition.maxAlternatives = 1
     recognition.onstart = () => { listeningRef.current = true; setListening(true); logActivity('Microphone is listening — speak naturally') }
     recognition.onresult = (event: any) => {
+      // SpeechRecognition returns a live list of results. Rebuild the complete
+      // transcript on every event so words are not lost when resultIndex moves.
       let heard = ''
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        heard += `${event.results[index]?.[0]?.transcript || ''} `
+      let hasFinalResult = false
+      for (let index = 0; index < event.results.length; index += 1) {
+        const result = event.results[index]
+        heard += `${result?.[0]?.transcript || ''} `
+        if (result?.isFinal) hasFinalResult = true
       }
       const visibleText = heard.trim()
       if (!visibleText) return
       transcriptRef.current = visibleText
       setInput(visibleText)
-      const hasFinalResult = Array.from(event.results as ArrayLike<{ isFinal: boolean }>).some((result) => result.isFinal)
+      logActivity(`Hearing: ${visibleText}`)
       if (hasFinalResult) {
         if (speechTimerRef.current) window.clearTimeout(speechTimerRef.current)
         speechTimerRef.current = window.setTimeout(() => {
@@ -186,9 +191,9 @@ export default function Page() {
           if (!sentence) return
           transcriptRef.current = ''
           setInput('')
-          logActivity('Speech captured — sending your question to Aura')
+          logActivity(`Speech captured: “${sentence}” — sending to Aura`)
           submitSpeech(sentence)
-        }, 700)
+        }, 900)
       }
     }
     recognition.onerror = (event: any) => {
