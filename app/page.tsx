@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
-import { Bell, Camera, CameraOff, HeartPulse, Mic, MicOff, Phone, Send, Volume2 } from 'lucide-react'
+import { Bell, Camera, CameraOff, HeartPulse, Mic, MicOff, Phone, Send, Volume2, Play, Wrench, Activity, X, CheckCircle2 } from 'lucide-react'
 
 type Message = { id: number; from: 'you' | 'aura'; text: string }
 type Medication = { id: number; name: string; dose: string; instructions: string; time: string; status: string }
@@ -10,9 +10,9 @@ const localReply = (text: string) => {
   const value = text.toLowerCase()
   if (/hello|hi|good morning|are you there/.test(value)) return 'Hello. I am Aura, and I am right here with you. How are you feeling today?'
   if (/medicine|medication|pill|tablet/.test(value)) return 'I can help with your medication reminders. Please follow the instructions from your care team.'
-  if (/sad|lonely|worried|pain|not well/.test(value)) return 'I am here with you. Take a slow breath. Would you like me to call Priya?'
+  if (/sad|lonely|worried|pain|not well/.test(value)) return 'I am here with you. Take a slow breath. Would you like me to call Esther?'
   if (/thank/.test(value)) return 'You are very welcome. I am happy to help.'
-  return `I heard you say, “${text}”. I am listening. You can ask me about reminders, the camera, or calling Priya.`
+  return `I heard you say, “${text}”. I am listening. You can ask me about reminders, the camera, or calling Esther.`
 }
 
 export default function Page() {
@@ -30,9 +30,16 @@ export default function Page() {
   const cameraRef = useRef<HTMLVideoElement>(null)
   const restartRef = useRef<number | null>(null)
   const armedRef = useRef(false)
+  const [demoOpen, setDemoOpen] = useState(false)
+  const [toolsOpen, setToolsOpen] = useState(false)
+  const [activity, setActivity] = useState<string[]>(['AuraCare ready for a conversation'])
+
+  const logActivity = useCallback((event: string) => {
+    setActivity((items) => [`${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · ${event}`, ...items].slice(0, 6))
+  }, [])
 
   const speak = useCallback((text: string) => {
-    setMessages((items) => [...items, { id: Date.now() + Math.random(), from: 'aura', text }].slice(-12))
+    setMessages((items) => [...items, { id: Date.now() + Math.random(), from: 'aura' as const, text }].slice(-12))
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel()
       const utterance = new SpeechSynthesisUtterance(text)
@@ -46,7 +53,7 @@ export default function Page() {
     const question = text.trim()
     if (!question || loading) return
     setInput('')
-    setMessages((items) => [...items, { id: Date.now() + Math.random(), from: 'you', text: question }].slice(-12))
+    setMessages((items) => [...items, { id: Date.now() + Math.random(), from: 'you' as const, text: question }].slice(-12))
     setLoading(true)
     try {
       const response = await fetch('/api/assistant', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: question }) })
@@ -79,9 +86,9 @@ export default function Page() {
     }
   }, [cameraOn, speak, stopCamera])
 
-  const callPriya = useCallback(() => {
+  const callEsther = useCallback(() => {
     setCalling(true)
-    speak('Calling Priya now. Please stay comfortable while I connect you.')
+    speak('Calling Esther now. Please stay comfortable while I connect you.')
     window.setTimeout(() => setCalling(false), 5000)
   }, [speak])
 
@@ -94,7 +101,7 @@ export default function Page() {
     recognition.continuous = true
     recognition.interimResults = false
     recognition.maxAlternatives = 1
-    recognition.onstart = () => { listeningRef.current = true; setListening(true) }
+    recognition.onstart = () => { listeningRef.current = true; setListening(true); logActivity('Microphone is listening for “Aura”') }
     recognition.onresult = (event: any) => {
       const result = event.results[event.results.length - 1]
       const transcript = result?.[0]?.transcript?.trim() || ''
@@ -106,7 +113,7 @@ export default function Page() {
       if (!command) { speak('Yes, I am listening. Please tell me what you need.'); return }
       if (/turn off|switch off|close|stop/.test(command.toLowerCase()) && /camera/.test(command.toLowerCase())) { stopCamera(); armedRef.current = false; return }
       if (/turn on|switch on|open|start/.test(command.toLowerCase()) && /camera/.test(command.toLowerCase())) { toggleCamera(); armedRef.current = false; return }
-      if (/call|caretaker|priya/.test(command.toLowerCase())) { callPriya(); armedRef.current = false; return }
+      if (/call|caretaker|priya/.test(command.toLowerCase())) { callEsther(); armedRef.current = false; return }
       askAura(command)
       armedRef.current = false
     }
@@ -114,7 +121,7 @@ export default function Page() {
       if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
         listeningRef.current = false
         setListening(false)
-        speak('Microphone access is blocked. Please allow microphone access, then press Start listening.')
+        logActivity('Microphone permission was blocked'); speak('Microphone access is blocked. Please allow microphone access, then press Start listening.')
       }
     }
     recognition.onend = () => {
@@ -124,7 +131,7 @@ export default function Page() {
     }
     recognitionRef.current = recognition
     try { recognition.start() } catch { speak('Please press the microphone button again to start listening.') }
-  }, [askAura, callPriya, speak, stopCamera, toggleCamera])
+  }, [askAura, callEsther, speak, stopCamera, toggleCamera])
 
   useEffect(() => {
     fetch('/api/medications').then((response) => response.json()).then((data) => setMedications(data.medications || [])).catch(() => {})
@@ -157,11 +164,13 @@ export default function Page() {
         <div className="mt-5 flex min-h-56 flex-col gap-3 rounded-3xl bg-gradient-to-br from-indigo-50 to-cyan-50 p-4">{messages.length === 0 && <div className="m-auto text-center text-slate-500"><Volume2 className="mx-auto mb-3 size-10 text-indigo-500" /><p className="font-bold">Say “Aura” to wake me up</p><p className="mt-1 text-sm">Then ask your question. I will answer out loud.</p></div>}{messages.map((message) => <div key={message.id} className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm ${message.from === 'you' ? 'self-end bg-indigo-600 text-white' : 'bg-white text-slate-700 shadow-sm'}`}><span className="mb-1 block text-[10px] font-black uppercase opacity-60">{message.from === 'you' ? 'You' : 'Aura'}</span>{message.text}</div>)}{loading && <div className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-indigo-600">Aura is thinking…</div>}</div>
         <div className="mt-5 flex flex-col items-center gap-3"><button onClick={startListening} aria-label={listening ? 'Stop listening' : 'Start listening'} className={`flex size-24 items-center justify-center rounded-full text-white shadow-xl transition hover:scale-105 ${listening ? 'bg-rose-500' : 'bg-gradient-to-br from-indigo-600 to-cyan-500'}`}>{listening ? <MicOff className="size-10" /> : <Mic className="size-10" />}</button><p className="text-sm font-bold text-slate-500">{listening ? 'Listening for “Aura” and your question' : 'Tap the microphone to start'}</p></div>
         <form onSubmit={(event) => { event.preventDefault(); askAura(input) }} className="mt-5 flex gap-2"><input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Type to talk with Aura..." className="min-w-0 flex-1 rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-indigo-500" /><button className="rounded-2xl bg-indigo-600 px-4 text-white" aria-label="Send message"><Send /></button></form>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2"><button onClick={toggleCamera} className="flex items-center justify-center gap-2 rounded-2xl bg-cyan-600 px-4 py-3 font-bold text-white">{cameraOn ? <CameraOff /> : <Camera />} {cameraOn ? 'Turn camera off' : 'Camera check-in'}</button><button onClick={callPriya} className="flex items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 font-bold text-white"><Phone /> Call Priya</button></div>{cameraOn && <div className="mt-4 overflow-hidden rounded-2xl bg-slate-950 p-2"><video ref={cameraRef} autoPlay playsInline className="aspect-video w-full rounded-xl object-cover" /></div>}
+        <div className="mt-3 grid gap-3 sm:grid-cols-2"><button onClick={() => setDemoOpen(true)} className="flex items-center justify-center gap-2 rounded-2xl border-2 border-indigo-200 bg-indigo-50 px-4 py-3 font-bold text-indigo-700"><Play /> Interactive demo</button><button onClick={() => setToolsOpen(true)} className="flex items-center justify-center gap-2 rounded-2xl border-2 border-cyan-200 bg-cyan-50 px-4 py-3 font-bold text-cyan-700"><Wrench /> Frameworks &amp; MCP</button></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><button onClick={toggleCamera} className="flex items-center justify-center gap-2 rounded-2xl bg-cyan-600 px-4 py-3 font-bold text-white">{cameraOn ? <CameraOff /> : <Camera />} {cameraOn ? 'Turn camera off' : 'Camera check-in'}</button><button onClick={callEsther} className="flex items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 font-bold text-white"><Phone /> Call Esther</button></div>{cameraOn && <div className="mt-4 overflow-hidden rounded-2xl bg-slate-950 p-2"><video ref={cameraRef} autoPlay playsInline className="aspect-video w-full rounded-xl object-cover" /></div>}
       </section>
-      <aside className="flex flex-col gap-6"><section className="rounded-[2rem] bg-white p-5 shadow-xl"><div className="flex items-center gap-2 text-lg font-black text-indigo-950"><Bell className="text-orange-500" /> Medication reminders</div><div className="mt-4 grid gap-3">{medications.map((medication) => <div key={medication.id} className="rounded-2xl bg-orange-50 p-3"><div className="font-bold">{medication.name}</div><div className="text-sm text-slate-600">{medication.dose} · {medication.time}</div></div>)}</div><form onSubmit={addMedication} className="mt-5 grid gap-2"><input required placeholder="Medication name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="rounded-xl border px-3 py-2" /><input required placeholder="Dose" value={form.dose} onChange={(event) => setForm({ ...form, dose: event.target.value })} className="rounded-xl border px-3 py-2" /><input required type="time" value={form.time} onChange={(event) => setForm({ ...form, time: event.target.value })} className="rounded-xl border px-3 py-2" /><button className="rounded-xl bg-orange-500 px-3 py-2 font-bold text-white">Add reminder</button></form></section><section className="rounded-[2rem] bg-indigo-950 p-5 text-white shadow-xl"><div className="font-black">Voice commands</div><ul className="mt-3 grid gap-2 text-sm text-indigo-100"><li>“Aura, how are you?”</li><li>“Aura, turn the camera off.”</li><li>“Aura, call Priya.”</li></ul></section></aside>
+      <aside className="flex flex-col gap-6"><section className="rounded-[2rem] bg-white p-5 shadow-xl"><div className="flex items-center gap-2 text-lg font-black text-indigo-950"><Bell className="text-orange-500" /> Medication reminders</div><div className="mt-4 grid gap-3">{medications.map((medication) => <div key={medication.id} className="rounded-2xl bg-orange-50 p-3"><div className="font-bold">{medication.name}</div><div className="text-sm text-slate-600">{medication.dose} · {medication.time}</div></div>)}</div><form onSubmit={addMedication} className="mt-5 grid gap-2"><input required placeholder="Medication name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="rounded-xl border px-3 py-2" /><input required placeholder="Dose" value={form.dose} onChange={(event) => setForm({ ...form, dose: event.target.value })} className="rounded-xl border px-3 py-2" /><input required type="time" value={form.time} onChange={(event) => setForm({ ...form, time: event.target.value })} className="rounded-xl border px-3 py-2" /><button className="rounded-xl bg-orange-500 px-3 py-2 font-bold text-white">Add reminder</button></form></section><section className="rounded-[2rem] bg-indigo-950 p-5 text-white shadow-xl"><div className="font-black">Voice commands</div><ul className="mt-3 grid gap-2 text-sm text-indigo-100"><li>“Aura, how are you?”</li><li>“Aura, turn the camera off.”</li><li>“Aura, call Esther.”</li></ul></section></aside>
     </div>
+    {demoOpen && <div className="fixed inset-0 z-30 flex items-center justify-center bg-indigo-950/40 p-5 backdrop-blur-sm"><section className="w-full max-w-2xl rounded-[2rem] bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><div><div className="text-sm font-black uppercase tracking-[0.2em] text-orange-500">Hackathon demo mode</div><h2 className="mt-1 text-3xl font-black text-indigo-950">See AuraCare in action</h2><p className="mt-2 text-sm text-slate-500">Try every capability without needing a real medication or call.</p></div><button onClick={() => setDemoOpen(false)} aria-label="Close demo" className="rounded-xl p-2 text-slate-500 hover:bg-slate-100"><X /></button></div><div className="mt-5 grid gap-3 sm:grid-cols-3"><button onClick={() => { speak('Demo voice response: Hello, I am Aura. I am listening and ready to help.'); logActivity('Demo: voice response played') }} className="rounded-2xl bg-indigo-600 p-4 text-left font-bold text-white"><Mic className="mb-2" />Voice response</button><button onClick={() => { toggleCamera(); logActivity('Demo: camera check-in triggered') }} className="rounded-2xl bg-cyan-600 p-4 text-left font-bold text-white"><Camera className="mb-2" />Camera check-in</button><button onClick={() => { setAlarm(medications[0] || { id: 0, name: 'demo medication', dose: '1 tablet', instructions: 'Demo reminder', time: 'now', status: 'due' }); speak('Demo reminder. It is time to take your medication.'); logActivity('Demo: audible reminder triggered') }} className="rounded-2xl bg-orange-500 p-4 text-left font-bold text-white"><Bell className="mb-2" />Sound reminder</button></div><div className="mt-5 rounded-2xl bg-slate-50 p-4"><div className="flex items-center gap-2 font-bold text-slate-900"><Activity className="text-emerald-600" />Live event stream</div><div className="mt-3 grid gap-2 text-sm text-slate-600">{activity.map((event) => <div key={event} className="flex items-center gap-2"><CheckCircle2 className="size-4 text-emerald-500" />{event}</div>)}</div></div></section></div>}
+    {toolsOpen && <div className="fixed inset-0 z-30 flex items-center justify-center bg-indigo-950/40 p-5 backdrop-blur-sm"><section className="w-full max-w-2xl rounded-[2rem] bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><div><div className="text-sm font-black uppercase tracking-[0.2em] text-cyan-600">Technology stack</div><h2 className="mt-1 text-3xl font-black text-indigo-950">Frameworks &amp; tools</h2></div><button onClick={() => setToolsOpen(false)} aria-label="Close tools" className="rounded-xl p-2 text-slate-500 hover:bg-slate-100"><X /></button></div><div className="mt-5 grid gap-3 sm:grid-cols-2">{[['Next.js 16', 'App Router and API routes'], ['React 19', 'Interactive senior companion UI'], ['TypeScript', 'Typed application logic'], ['Tailwind CSS', 'Responsive accessible design'], ['Web Speech API', 'Wake word, recognition, spoken replies'], ['MediaDevices API', 'Live camera check-in'], ['MCP', 'Tool discovery and context exchange'], ['AI SDK + AI Gateway', 'Safe conversational responses'], ['SQLite', 'Medication and action memory'], ['Amazon-ready architecture', 'Caregiver escalation and audit trail']].map(([name, detail]) => <div key={name} className="rounded-2xl border border-slate-100 bg-slate-50 p-4"><div className="font-black text-indigo-950">{name}</div><div className="mt-1 text-sm text-slate-600">{detail}</div></div>)}</div></section></div>}
     {alarm && <div className="fixed bottom-5 left-1/2 z-20 w-[min(92vw,430px)] -translate-x-1/2 rounded-3xl bg-orange-500 p-5 text-white shadow-2xl"><div className="flex items-start justify-between gap-3"><div><div className="font-black">Medication reminder</div><div className="mt-1 text-2xl font-black">{alarm.name}</div><div>{alarm.dose} · {alarm.instructions}</div></div><button onClick={() => setAlarm(null)} className="rounded-xl bg-white/20 px-3 py-2 font-bold">Done</button></div></div>}
-    {calling && <div className="fixed right-5 top-5 z-20 rounded-2xl bg-emerald-500 px-5 py-4 font-bold text-white shadow-xl">Calling Priya…</div>}
+    {calling && <div className="fixed right-5 top-5 z-20 rounded-2xl bg-emerald-500 px-5 py-4 font-bold text-white shadow-xl">Calling Esther…</div>}
   </main>
 }
