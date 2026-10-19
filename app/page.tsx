@@ -39,6 +39,7 @@ export default function Page() {
   const speechTimerRef = useRef<number | null>(null)
   const transcriptRef = useRef('')
   const armedRef = useRef(false)
+  const autoStartRef = useRef(false)
   const [demoOpen, setDemoOpen] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
   const [activity, setActivity] = useState<string[]>(['AuraCare ready for a conversation'])
@@ -146,9 +147,6 @@ export default function Page() {
         speak('Yes, Elenor. I am listening.')
         return
       }
-      listeningRef.current = false
-      recognitionRef.current?.stop()
-      setListening(false)
       if (speechTimerRef.current) window.clearTimeout(speechTimerRef.current)
       transcriptRef.current = ''
       setInput('')
@@ -156,6 +154,8 @@ export default function Page() {
       if (/camera/.test(command.toLowerCase()) && /turn off|switch off|close|stop/.test(command.toLowerCase())) { stopCamera(); return }
       if (/camera/.test(command.toLowerCase()) && /turn on|switch on|open|start/.test(command.toLowerCase())) { toggleCamera(); return }
       if (/call|caretaker|caregiver/.test(command.toLowerCase())) { callEsther(); return }
+      // Keep recognition alive while Aura processes the sentence, so every
+      // spoken turn is transcribed into the field and sent automatically.
       askAura(command)
     }
 
@@ -202,10 +202,9 @@ export default function Page() {
       if (capturedText) {
         logActivity('Speech captured — sending your question to Aura')
         submitSpeech(capturedText)
-        return
       }
-      setListening(false)
-      logActivity('Listening paused — say a few words and try again')
+      // Chrome and Safari can end a recognition session after a pause even
+      // with continuous=true. Restart it without changing the listening state.
       if (restartRef.current) window.clearTimeout(restartRef.current)
       restartRef.current = window.setTimeout(() => {
         if (!listeningRef.current) return
@@ -218,8 +217,13 @@ export default function Page() {
 
   useEffect(() => {
     fetch('/api/medications').then((response) => response.json()).then((data) => setMedications(data.medications || [])).catch(() => {})
-    return () => { recognitionRef.current?.stop(); if (restartRef.current) window.clearTimeout(restartRef.current) }
-  }, [])
+    const autoStart = window.setTimeout(() => {
+      if (autoStartRef.current || listeningRef.current) return
+      autoStartRef.current = true
+      startListening()
+    }, 700)
+    return () => { window.clearTimeout(autoStart); recognitionRef.current?.stop(); if (restartRef.current) window.clearTimeout(restartRef.current) }
+  }, [startListening])
 
   useEffect(() => {
     const timer = window.setInterval(() => {
