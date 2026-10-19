@@ -16,7 +16,6 @@ Open the preview and switch between Senior view and Caregiver dashboard. `pnpm v
 Copy `.env.example` to your environment. `MCP_AUTH_TOKEN` protects `/mcp`; `AI_API_KEY` and `AI_MODEL` enable optional server-side AI summaries; `RESEND_API_KEY` enables email delivery; `CAREGIVER_EMAIL` is Priya's test inbox. Without optional keys, the UI remains clearly SIMULATED.
 
 ## Where MCP is used
-
 `mcp.config.json` describes the endpoint. Tool definitions and safety helpers are in `server/tools.ts`, and the runtime client contract is in `lib/mcp-client.ts`. The UI ships with a visible, auditable MCP contract surface while backend wiring can be connected to the deployed `/mcp` endpoint. All tool responses must remain prescription-grounded and use human escalation for uncertainty.
 
 ```mermaid
