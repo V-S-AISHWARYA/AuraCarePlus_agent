@@ -4,7 +4,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'AuraCare+ · Care, made more human',
-  description: 'A safe, synthetic wellness companion for Eleanor and Priya.',
+  description: 'AuraCare voice companion with medication reminders, camera checks, and caregiver-safe responses for seniors.',
   generator: 'v0.app',
 }
 export const viewport: Viewport = { colorScheme: 'light', themeColor: '#f5f7fb', userScalable: true }
