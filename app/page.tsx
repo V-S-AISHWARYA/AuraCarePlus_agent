@@ -125,6 +125,10 @@ export default function Page() {
     const submitSpeech = (spokenText: string) => {
       const normalized = spokenText.trim()
       if (!normalized) return
+      listeningRef.current = false
+      recognitionRef.current?.stop()
+      setListening(false)
+      if (speechTimerRef.current) window.clearTimeout(speechTimerRef.current)
       const lower = normalized.toLowerCase()
       const auraIndex = lower.lastIndexOf('aura')
       const command = auraIndex >= 0 ? normalized.slice(auraIndex + 4).trim() : normalized
@@ -139,23 +143,24 @@ export default function Page() {
 
     const recognition = new Recognition()
     recognition.lang = 'en-US'
-    recognition.continuous = false
+    recognition.continuous = true
     recognition.interimResults = true
     recognition.maxAlternatives = 1
     recognition.onstart = () => { listeningRef.current = true; setListening(true); logActivity('Microphone is listening — speak naturally') }
     recognition.onresult = (event: any) => {
-      let finalText = ''
+      let finalText = transcriptRef.current
       let interimText = ''
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
         const phrase = event.results[index]?.[0]?.transcript || ''
         if (event.results[index].isFinal) finalText += `${phrase} `
         else interimText += `${phrase} `
       }
+      transcriptRef.current = finalText
       const visibleText = `${finalText}${interimText}`.trim()
       if (visibleText) setInput(visibleText)
-      if (finalText.trim()) {
+      if (visibleText) {
         if (speechTimerRef.current) window.clearTimeout(speechTimerRef.current)
-        speechTimerRef.current = window.setTimeout(() => submitSpeech(finalText), 650)
+        speechTimerRef.current = window.setTimeout(() => submitSpeech(transcriptRef.current), 1100)
       }
     }
     recognition.onerror = (event: any) => {
