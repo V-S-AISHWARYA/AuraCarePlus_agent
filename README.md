@@ -37,5 +37,4 @@ The activity sensor, browser speech, Alexa device surface, unavailable email out
 AI is only a server-side assistant for structured SBAR wording and optional label extraction. Code performs exact normalized prescription matching, confidence thresholds, refusal filtering, and escalation. No clinical certification or medical advice claims are made.
 
 ## Demo checklist
-
-See `docs/DEMO_CHECKLIST.md` for the video walkthrough.
+https://auracare-omega.vercel.app/
