@@ -37,3 +37,6 @@ AI is only a server-side assistant for structured SBAR wording and optional labe
 
 ## Demo checklist
 https://auracare-omega.vercel.app/
+
+## LICENSE
+MIT License
