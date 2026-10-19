@@ -36,6 +36,8 @@ export default function Page() {
   const listeningRef = useRef(false)
   const cameraRef = useRef<HTMLVideoElement>(null)
   const restartRef = useRef<number | null>(null)
+  const speechTimerRef = useRef<number | null>(null)
+  const transcriptRef = useRef('')
   const armedRef = useRef(false)
   const [demoOpen, setDemoOpen] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
@@ -106,23 +108,34 @@ export default function Page() {
     const recognition = new Recognition()
     recognition.lang = 'en-US'
     recognition.continuous = true
-    recognition.interimResults = false
+    recognition.interimResults = true
     recognition.maxAlternatives = 1
-    recognition.onstart = () => { listeningRef.current = true; setListening(true); logActivity('Microphone is listening for “Aura”') }
+    recognition.onstart = () => { listeningRef.current = true; setListening(true); logActivity('Microphone is listening — speak naturally') }
     recognition.onresult = (event: any) => {
-      const result = event.results[event.results.length - 1]
-      const transcript = result?.[0]?.transcript?.trim() || ''
+      let transcript = ''
+      const startIndex = typeof event.resultIndex === 'number' ? event.resultIndex : event.results.length - 1
+      for (let index = startIndex; index < event.results.length; index += 1) {
+        transcript += `${event.results[index]?.[0]?.transcript || ''} `
+      }
+      transcript = transcript.trim()
       if (!transcript) return
-      const lower = transcript.toLowerCase()
-      const auraIndex = lower.lastIndexOf('aura')
-      if (auraIndex >= 0) armedRef.current = true
-      const command = auraIndex >= 0 ? transcript.slice(auraIndex + 4).trim() : armedRef.current ? transcript : ''
-      if (!command) { speak('Yes, I am listening. Please tell me what you need.'); return }
-      if (/turn off|switch off|close|stop/.test(command.toLowerCase()) && /camera/.test(command.toLowerCase())) { stopCamera(); armedRef.current = false; return }
-      if (/turn on|switch on|open|start/.test(command.toLowerCase()) && /camera/.test(command.toLowerCase())) { toggleCamera(); armedRef.current = false; return }
-      if (/call|caretaker|priya/.test(command.toLowerCase())) { callEsther(); armedRef.current = false; return }
-      askAura(command)
-      armedRef.current = false
+      transcriptRef.current = transcript
+      setInput(transcript)
+      if (speechTimerRef.current) window.clearTimeout(speechTimerRef.current)
+      speechTimerRef.current = window.setTimeout(() => {
+        const spokenText = transcriptRef.current.trim()
+        if (!spokenText) return
+        const lower = spokenText.toLowerCase()
+        const auraIndex = lower.lastIndexOf('aura')
+        const command = auraIndex >= 0 ? spokenText.slice(auraIndex + 4).trim() : spokenText
+        transcriptRef.current = ''
+        setInput('')
+        if (!command) { speak('Yes, I am listening. Please tell me what you need.'); return }
+        if (/turn off|switch off|close|stop/.test(command.toLowerCase()) && /camera/.test(command.toLowerCase())) { stopCamera(); return }
+        if (/turn on|switch on|open|start/.test(command.toLowerCase()) && /camera/.test(command.toLowerCase())) { toggleCamera(); return }
+        if (/call|caretaker|caregiver|priya|esther/.test(command.toLowerCase())) { callEsther(); return }
+        askAura(command)
+      }, 1200)
     }
     recognition.onerror = (event: any) => {
       if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
