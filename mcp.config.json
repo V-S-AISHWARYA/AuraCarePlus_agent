@@ -1,0 +1,5 @@
+{
+  "serverUrl": "/mcp",
+  "protocolVersion": "2025-11-25",
+  "auth": "Bearer ${MCP_AUTH_TOKEN}"
+}
