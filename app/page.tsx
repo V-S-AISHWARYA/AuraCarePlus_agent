@@ -20,6 +20,7 @@ export default function Page() {
   const [conversation, setConversation] = useState<Conversation[]>([])
   const [input, setInput] = useState('')
   const [listening, setListening] = useState(false)
+  const [wakeWordReady, setWakeWordReady] = useState(false)
   const [loading, setLoading] = useState(false)
   const [cameraOpen, setCameraOpen] = useState(false)
   const [calling, setCalling] = useState(false)
@@ -28,6 +29,7 @@ export default function Page() {
   const [form, setForm] = useState({ name: '', dose: '', time: '', instructions: '' })
   const videoRef = useRef<HTMLVideoElement>(null)
   const recognitionRef = useRef<any>(null)
+  const listeningRef = useRef(false)
 
   const speak = useCallback((text: string) => {
     setConversation((items) => [...items, { id: Date.now() + Math.random(), speaker: 'aura', text }].slice(-12))
@@ -44,9 +46,9 @@ export default function Page() {
     setConversation((items) => [...items, { id: Date.now() + Math.random(), speaker: 'you', text: question }].slice(-12))
     setLoading(true)
     try {
-      const response = await fetch('/api/assistant', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: question }) })
+      const response = await fetch('/api/assistant', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: question }) })
       const data = await response.json().catch(() => ({}))
-      speak(response.ok && data.reply ? data.reply : fallbackReply(question))
+      speak(response.ok && data.answer ? data.answer : fallbackReply(question))
     } catch {
       speak(fallbackReply(question))
     } finally {
@@ -54,21 +56,48 @@ export default function Page() {
     }
   }, [loading, speak])
 
-  const startListening = useCallback(() => {
+  const startListening = useCallback((wakeMode = false) => {
     const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!Recognition) { speak('Voice input is not available in this browser. You can type your question below.'); return }
-    if (listening) { recognitionRef.current?.stop(); setListening(false); return }
+    if (listeningRef.current) { recognitionRef.current?.stop(); listeningRef.current = false; setListening(false); setWakeWordReady(false); return }
     const recognition = new Recognition()
     recognition.lang = 'en-US'
-    recognition.continuous = false
+    recognition.continuous = wakeMode
     recognition.interimResults = false
-    recognition.onstart = () => setListening(true)
-    recognition.onresult = (event: any) => askAura(event.results[0][0].transcript)
-    recognition.onerror = () => { setListening(false); speak('I could not hear that clearly. Please try again or type your question.') }
-    recognition.onend = () => setListening(false)
+    recognition.onstart = () => { listeningRef.current = true; setListening(true); if (wakeMode) setWakeWordReady(true) }
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results).slice(-1)[0]?.[0]?.transcript?.trim() || ''
+      if (!wakeMode) { askAura(transcript); return }
+      const lower = transcript.toLowerCase()
+      const wakeIndex = lower.lastIndexOf('aura')
+      if (wakeIndex < 0) return
+      const command = transcript.slice(wakeIndex + 4).trim()
+      if (command) askAura(command)
+      else speak('Yes, I am listening. What would you like help with?')
+    }
+    recognition.onerror = (event: any) => {
+      listeningRef.current = false
+      setListening(false)
+      setWakeWordReady(false)
+      if (event?.error !== 'aborted') speak('I am ready. Please say Aura, then tell me what you need.')
+    }
+    recognition.onend = () => {
+      listeningRef.current = false
+      setListening(false)
+      if (wakeMode) window.setTimeout(() => {
+        try { recognition.start() } catch { /* browser may already be restarting */ }
+      }, 250)
+    }
     recognitionRef.current = recognition
-    recognition.start()
-  }, [askAura, listening, speak])
+    try { recognition.start() } catch { setListening(false); setWakeWordReady(false) }
+  }, [askAura, speak])
+
+  useEffect(() => {
+    const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!Recognition) return
+    const timer = window.setTimeout(() => startListening(true), 700)
+    return () => { window.clearTimeout(timer); recognitionRef.current?.stop() }
+  }, [startListening])
 
   const openCamera = useCallback(async () => {
     setCameraOpen(true)
