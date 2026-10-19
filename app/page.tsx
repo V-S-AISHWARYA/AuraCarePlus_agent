@@ -125,15 +125,9 @@ export default function Page() {
       return
     }
 
-    try {
-      const permissionStream = await navigator.mediaDevices?.getUserMedia({ audio: true })
-      permissionStream?.getTracks().forEach((track) => track.stop())
-    } catch {
-      logActivity('Microphone permission is needed before Aura can listen')
-      speak('Please allow microphone access in your browser so I can hear you.')
-      return
-    }
-
+    // Start SpeechRecognition directly. Requesting a separate getUserMedia
+    // stream first can consume the browser microphone permission and leave
+    // SpeechRecognition connected to a silent stream in preview browsers.
     const submitSpeech = (spokenText: string) => {
       const normalized = spokenText.trim()
       if (!normalized) return
